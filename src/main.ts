@@ -32,7 +32,12 @@ function hasMessages(path: string): boolean {
 
 /** Drive a reflection and render its activity. Shared by `reflect` and auto-reflect. */
 async function runReflection(memoryDir: string, sessionPath?: string): Promise<void> {
-  const generator = reflect(memoryDir, sessionPath ?? undefined);
+  // Reflect with the same provider settings as the daily driver, so a Kimi
+  // session reflects on Kimi (model comes from the session; thinking from env).
+  const generator = reflect(memoryDir, sessionPath ?? undefined, {
+    thinking: process.env.CARBON_NO_THINKING === "1" ? null : undefined,
+    cacheControl: process.env.CARBON_NO_CACHE === "1" ? false : undefined,
+  });
   let next = await generator.next();
   while (!next.done) {
     const event = next.value;

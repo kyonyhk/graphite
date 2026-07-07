@@ -1,4 +1,10 @@
-import { Agent, coreTools, Session, type AgentEvent } from "@carbon/core";
+import {
+  Agent,
+  coreTools,
+  Session,
+  type AgentEvent,
+  type AgentOptions,
+} from "@carbon/core";
 import { ensureMemoryDir } from "./memory.ts";
 import { REFLECTION_PROMPT } from "./prompt.ts";
 import { formatTranscript } from "./transcript.ts";
@@ -6,6 +12,14 @@ import { formatTranscript } from "./transcript.ts";
 export interface ReflectResult {
   sessionPath: string;
   summary: string;
+}
+
+export interface ReflectOptions {
+  /** Model for the reflection pass. Defaults to the model the session used. */
+  model?: string;
+  /** Passed through to the reflector; null disables thinking (e.g. Kimi code models). */
+  thinking?: AgentOptions["thinking"];
+  cacheControl?: boolean;
 }
 
 /**
@@ -18,16 +32,20 @@ export interface ReflectResult {
 export async function* reflect(
   memoryDir: string,
   sessionPath: string | null = Session.latestPath(),
-  options: { model?: string } = {},
+  options: ReflectOptions = {},
 ): AsyncGenerator<AgentEvent, ReflectResult> {
   if (!sessionPath) {
     throw new Error("No session to reflect on. Have a graphite session first, or pass a path.");
   }
   ensureMemoryDir(memoryDir);
-  const { messages } = Session.load(sessionPath);
+  const { session, messages } = Session.load(sessionPath);
 
   const reflector = new Agent({
-    model: options.model,
+    // Reflect with the same model the session used, so a cheap daily driver
+    // stays cheap through reflection too.
+    model: options.model ?? session.meta.model,
+    ...(options.thinking !== undefined ? { thinking: options.thinking } : {}),
+    ...(options.cacheControl !== undefined ? { cacheControl: options.cacheControl } : {}),
     cwd: memoryDir, // write/edit resolve relative paths into the memory dir
     memoryDir, // carbon injects the current MEMORY.md index
     projectInstructions: false, // reflection prompt only
