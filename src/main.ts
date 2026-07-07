@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Session } from "@carbon/core";
 import { spawnSync } from "node:child_process";
+import { printBanner } from "./banner.ts";
 import { defaultMemoryDir, ensureMemoryDir } from "./memory.ts";
 import { reflect } from "./reflect.ts";
 
@@ -76,11 +77,16 @@ async function main() {
   ensureMemoryDir(memoryDir);
   const noReflect = rest.includes("--no-reflect");
   const carbonArgs = rest.filter((a) => a !== "--no-reflect");
+  const printMode = carbonArgs.includes("-p") || carbonArgs.includes("--print");
+
+  // graphite owns the wordmark; carbon prints only its info line (--no-banner).
+  // Skip the banner in print mode (one-shot, non-interactive).
+  if (!printMode) printBanner("a self-improving agent · memory on");
 
   // Note the session that exists before carbon runs, so we can tell which one
   // carbon creates and reflect on exactly that.
   const before = Session.latestPath();
-  const result = spawnSync("carbon", ["--memory", memoryDir, ...carbonArgs], {
+  const result = spawnSync("carbon", ["--memory", memoryDir, "--no-banner", ...carbonArgs], {
     stdio: "inherit",
   });
 
