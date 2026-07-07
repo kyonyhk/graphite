@@ -27,10 +27,14 @@ Needs `ANTHROPIC_API_KEY` (or a linked profile), same as carbon.
 ## Use
 
 ```sh
-# a memory-backed session (this is carbon --memory under the hood, for now)
-graphite chat
+# a memory-backed session — reflects automatically when you exit
+graphite
 
-# distill the latest session into memory
+# same, with carbon flags passed through
+graphite -m claude-sonnet-5
+graphite --no-reflect          # skip the automatic reflection this time
+
+# distill the latest session into memory by hand (rarely needed now)
 graphite reflect
 
 # reflect on a specific session file

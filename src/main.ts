@@ -11,11 +11,11 @@ const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
 const HELP = `graphite — a self-improving agent on carbon
 
 usage:
-  graphite chat [carbon args…]   a memory-backed session; reflects automatically on exit
+  graphite [carbon args…]        start a memory-backed session; reflects automatically on exit
   graphite reflect [path]        update memory from the latest session (or a given one)
 
 flags:
-  --no-reflect                   (with chat) skip the automatic reflection on exit
+  --no-reflect                   skip the automatic reflection on exit
 
 Memory lives in ${defaultMemoryDir()} (override with GRAPHITE_MEMORY_DIR).
 `;
@@ -48,59 +48,57 @@ async function runReflection(memoryDir: string, sessionPath?: string): Promise<v
 }
 
 async function main() {
-  const [command, ...rest] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const command = args[0];
   const memoryDir = defaultMemoryDir();
 
-  switch (command) {
-    case "chat": {
-      ensureMemoryDir(memoryDir);
-      const noReflect = rest.includes("--no-reflect");
-      const carbonArgs = rest.filter((a) => a !== "--no-reflect");
-
-      // Note the session that exists before carbon runs, so we can tell which
-      // one carbon creates and reflect on exactly that.
-      const before = Session.latestPath();
-      const result = spawnSync("carbon", ["--memory", memoryDir, ...carbonArgs], {
-        stdio: "inherit",
-      });
-
-      // Auto-reflect on the session carbon just created (the newest, if it's
-      // new and non-empty). This is what closes the learning loop in one
-      // command — the whole reason chat wraps carbon instead of being it.
-      if (!noReflect) {
-        const after = Session.latestPath();
-        if (after && after !== before && hasMessages(after)) {
-          process.stdout.write(dim("\n─ reflecting on this session ─\n"));
-          try {
-            await runReflection(memoryDir, after);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            process.stdout.write(red(`\nreflection failed: ${message}\n`));
-          }
-        }
-      }
-      process.exit(result.status ?? 0);
-      break;
-    }
-    case "reflect": {
-      try {
-        await runReflection(memoryDir, rest[0]);
-      } catch (error) {
-        console.error(red(`error: ${error instanceof Error ? error.message : String(error)}`));
-        process.exit(1);
-      }
-      break;
-    }
-    case undefined:
-    case "-h":
-    case "--help":
-      process.stdout.write(HELP);
-      break;
-    default:
-      console.error(red(`unknown command: ${command}\n`));
-      process.stdout.write(HELP);
-      process.exit(1);
+  // `graphite reflect` and `graphite --help` are the only explicit commands.
+  // Everything else — including bare `graphite` — starts a chat session, with
+  // any args passed through to carbon (e.g. `graphite -m claude-sonnet-5`).
+  if (command === "-h" || command === "--help" || command === "help") {
+    process.stdout.write(HELP);
+    return;
   }
+
+  if (command === "reflect") {
+    try {
+      await runReflection(memoryDir, args[1]);
+    } catch (error) {
+      console.error(red(`error: ${error instanceof Error ? error.message : String(error)}`));
+      process.exit(1);
+    }
+    return;
+  }
+
+  // chat (the default). Accept an explicit leading "chat" for clarity, but
+  // it's optional — bare `graphite` lands here.
+  const rest = command === "chat" ? args.slice(1) : args;
+  ensureMemoryDir(memoryDir);
+  const noReflect = rest.includes("--no-reflect");
+  const carbonArgs = rest.filter((a) => a !== "--no-reflect");
+
+  // Note the session that exists before carbon runs, so we can tell which one
+  // carbon creates and reflect on exactly that.
+  const before = Session.latestPath();
+  const result = spawnSync("carbon", ["--memory", memoryDir, ...carbonArgs], {
+    stdio: "inherit",
+  });
+
+  // Auto-reflect on the session carbon just created (newest, if new and
+  // non-empty). This closes the learning loop in one command.
+  if (!noReflect) {
+    const after = Session.latestPath();
+    if (after && after !== before && hasMessages(after)) {
+      process.stdout.write(dim("\n─ reflecting on this session ─\n"));
+      try {
+        await runReflection(memoryDir, after);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stdout.write(red(`\nreflection failed: ${message}\n`));
+      }
+    }
+  }
+  process.exit(result.status ?? 0);
 }
 
 main();
