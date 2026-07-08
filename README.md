@@ -1,3 +1,5 @@
+<img src="assets/graphite.png" alt="GRAPHITE" width="100%" />
+
 # graphite
 
 A self-improving agent built on [carbon](https://github.com/kyonyhk/carbon). It
